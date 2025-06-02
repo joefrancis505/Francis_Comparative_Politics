@@ -1,0 +1,30 @@
+[[1]]
+  unit.names w.weights
+1    Austria         1
+
+[[2]]
+  unit.names.CNa1 unit.names.CNa2 w.weights
+1         Austria          France      0.73
+2         Austria          France      0.27
+
+[[3]]
+  unit.names.CNa1 unit.names.CNa2 unit.names.CNa3 w.weights
+1         Austria          France           Japan      0.70
+2         Austria          France           Japan      0.27
+3         Austria          France           Japan      0.03
+
+[[4]]
+  unit.names.CNa1 unit.names.CNa2 unit.names.CNa3 unit.names.CNa4 w.weights
+2             USA         Austria          France           Japan      0.67
+3             USA         Austria          France           Japan      0.26
+4             USA         Austria          France           Japan      0.05
+1             USA         Austria          France           Japan      0.02
+
+[[5]]
+   unit.names w.weights
+3     Austria      0.67
+6      France      0.25
+14      Japan      0.05
+1         USA      0.02
+2          UK      0.00
+
