@@ -1,0 +1,17 @@
+% latex table generated in R 4.4.2 by xtable 1.8-4 package
+% Mon Jun  2 12:14:28 2025
+\begin{table}[ht]
+\centering
+\begin{tabular}{rrrr}
+  \hline
+ & Treated & Synthetic & Rest of OECD Sample \\ 
+  \hline
+GDP per-capita & 95.6 & 99.7 & 8021.1 \\ 
+  Trade openness & 56.8 & 56.8 & 31.9 \\ 
+  Inflation rate & 2.6 & 3.6 & 7.4 \\ 
+  Industry share & 34.5 & 35.9 & 34.2 \\ 
+  Schooling & 55.5 & 55.4 & 44.1 \\ 
+  Investment rate & 27.0 & 27.2 & 25.9 \\ 
+   \hline
+\end{tabular}
+\end{table}

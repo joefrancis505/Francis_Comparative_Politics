@@ -9,4 +9,4 @@ Replication_original.R
 This is Abadie et al.'s original replication data, adapted to save the results in the Results folder.
 
 Replication_analysis.R
-This script runs the three separate replications described in the paper and saves the results in the Results folder.
+This script runs the four separate replications described in the paper and saves the results in the Results folder.

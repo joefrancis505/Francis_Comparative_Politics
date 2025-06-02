@@ -12,6 +12,8 @@ setwd(getSrcDirectory(function(dummy) {dummy}))
 # 1. West Germany 1990 = 100
 # 2. USA = 100 in each year
 # 3. WDI constant 2015 data with West Germany 1990 = 100
+# 4. Maddison Project 2023 constant data with West Germany 1990 = 100
+# 5. Maddison Project 2020 constant data with West Germany 1990 = 100
 
 rm(list=ls())
 
@@ -34,6 +36,11 @@ if (!require(xtable, quietly = TRUE)) {
 if (!require(WDI, quietly = TRUE)) {
   install.packages("WDI")
   library(WDI)
+}
+
+if (!require(readxl, quietly = TRUE)) {
+  install.packages("readxl")
+  library(readxl)
 }
 
 # Helper function to calculate appropriate y-axis limits
@@ -130,7 +137,7 @@ save_database <- function(data, filename, description) {
 
 # Create output directories
 create_directories <- function() {
-  dirs <- c("Results/Original_normalized", "Results/Original_USA_100", "Results/WDI_constant", "Data")
+  dirs <- c("Results/Original_normalized", "Results/Original_USA_100", "Results/WDI_constant", "Results/MP_2023_constant", "Results/MP_2020_constant", "Data")
   for (dir in dirs) {
     if (!dir.exists(dir)) {
       dir.create(dir, recursive = TRUE)
@@ -149,6 +156,20 @@ country_mapping <- data.frame(
   wdi_name = c("United States", "United Kingdom", "Austria", "Belgium", "Denmark", "France",
                "Germany", "Italy", "Netherlands", "Norway", "Switzerland",
                "Japan", "Greece", "Portugal", "Spain", "Australia", "New Zealand"),
+  stringsAsFactors = FALSE
+)
+
+# Country mapping for Maddison Project (using 3-letter codes)
+country_mapping_mp <- data.frame(
+  original = c("USA", "UK", "Austria", "Belgium", "Denmark", "France", 
+               "West Germany", "Italy", "Netherlands", "Norway", "Switzerland", 
+               "Japan", "Greece", "Portugal", "Spain", "Australia", "New Zealand"),
+  mp_code = c("USA", "GBR", "AUT", "BEL", "DNK", "FRA",
+              "DEU", "ITA", "NLD", "NOR", "CHE",
+              "JPN", "GRC", "PRT", "ESP", "AUS", "NZL"),
+  mp_name = c("United States", "United Kingdom", "Austria", "Belgium", "Denmark", "France",
+              "Germany", "Italy", "Netherlands", "Norway", "Switzerland",
+              "Japan", "Greece", "Portugal", "Spain", "Australia", "New Zealand"),
   stringsAsFactors = FALSE
 )
 
@@ -196,6 +217,216 @@ prepare_wdi_data <- function(indicator_code, indicator_name) {
   }
   
   return(list(data = wdi_data, complete_countries = countries_complete, indicator = indicator_code))
+}
+
+# Function to download and prepare Maddison Project 2023 data
+prepare_mp_2023_data <- function() {
+  cat("Loading Maddison Project 2023 data from Data/mpd2023_web.xlsx...\n")
+  
+  # Check if file exists
+  if (!file.exists("Data/mpd2023_web.xlsx")) {
+    stop("Maddison Project 2023 file Data/mpd2023_web.xlsx not found. Please download from https://www.rug.nl/ggdc/historicaldevelopment/maddison/releases/maddison-project-database-2023")
+  }
+  
+  # Read the Excel file
+  mp_data_raw <- read_excel("Data/mpd2023_web.xlsx", sheet = "GDPpc", skip = 2)
+  
+  # Get the column names (country codes) from row 3 (which is now row 1 after skipping 2 rows)
+  country_codes <- names(mp_data_raw)[-1]  # Exclude the 'year' column
+  
+  cat("Found", length(country_codes), "countries in Maddison Project 2023 data\n")
+  
+  # Reshape data from wide to long format
+  mp_data_long <- data.frame()
+  
+  years_needed <- 1960:2003
+  countries_complete <- c()
+  
+  # Check which of our target countries have complete data
+  for (i in 1:nrow(country_mapping_mp)) {
+    mp_code <- country_mapping_mp$mp_code[i]
+    mp_name <- country_mapping_mp$mp_name[i]
+    
+    if (mp_code %in% country_codes) {
+      # Extract data for this country
+      country_data <- mp_data_raw[mp_data_raw$year %in% years_needed, c("year", mp_code)]
+      
+      # Check for complete coverage
+      if (all(years_needed %in% country_data$year) && 
+          sum(is.na(country_data[[mp_code]])) == 0) {
+        countries_complete <- c(countries_complete, mp_name)
+        
+        # Add to long format data
+        country_long <- data.frame(
+          year = country_data$year,
+          country_code = mp_code,
+          country_name = mp_name,
+          gdp_pc = country_data[[mp_code]],
+          stringsAsFactors = FALSE
+        )
+        mp_data_long <- rbind(mp_data_long, country_long)
+      } else {
+        cat("Warning: Incomplete data for", mp_name, "- excluding from analysis\n")
+      }
+    } else {
+      cat("Warning: Country code", mp_code, "not found in Maddison Project 2023 data\n")
+    }
+  }
+  
+  if (length(countries_complete) == 0) {
+    stop("No countries have complete data coverage in Maddison Project 2023 data")
+  }
+  
+  cat("Countries with complete data:", paste(countries_complete, collapse = ", "), "\n")
+  
+  # Handle Germany ratio splicing if needed
+  if ("Germany" %in% countries_complete) {
+    mp_data_long <- apply_germany_ratio_splice_mp(mp_data_long)
+  }
+  
+  return(list(data = mp_data_long, complete_countries = countries_complete))
+}
+
+# Function to download and prepare Maddison Project 2020 data
+prepare_mp_2020_data <- function() {
+  cat("Loading Maddison Project 2020 data from Data/mpd2020.xlsx...\n")
+  
+  # Check if file exists
+  if (!file.exists("Data/mpd2020.xlsx")) {
+    stop("Maddison Project 2020 file Data/mpd2020.xlsx not found. Please download from https://www.rug.nl/ggdc/historicaldevelopment/maddison/releases/maddison-project-database-2020")
+  }
+  
+  # Read the Excel file (skip 1 row since column names are in Row 2)
+  mp_data_raw <- read_excel("Data/mpd2020.xlsx", sheet = "GDP pc", skip = 1)
+  
+  # Get the column names (country codes) from row 2 (which is now row 1 after skipping 1 row)
+  country_codes <- names(mp_data_raw)[-1]  # Exclude the 'year' column
+  
+  cat("Found", length(country_codes), "countries in Maddison Project 2020 data\n")
+  
+  # Reshape data from wide to long format
+  mp_data_long <- data.frame()
+  
+  years_needed <- 1960:2003
+  countries_complete <- c()
+  
+  # Check which of our target countries have complete data
+  for (i in 1:nrow(country_mapping_mp)) {
+    mp_code <- country_mapping_mp$mp_code[i]
+    mp_name <- country_mapping_mp$mp_name[i]
+    
+    if (mp_code %in% country_codes) {
+      # Extract data for this country
+      country_data <- mp_data_raw[mp_data_raw$year %in% years_needed, c("year", mp_code)]
+      
+      # Check for complete coverage
+      if (all(years_needed %in% country_data$year) && 
+          sum(is.na(country_data[[mp_code]])) == 0) {
+        countries_complete <- c(countries_complete, mp_name)
+        
+        # Add to long format data
+        country_long <- data.frame(
+          year = country_data$year,
+          country_code = mp_code,
+          country_name = mp_name,
+          gdp_pc = country_data[[mp_code]],
+          stringsAsFactors = FALSE
+        )
+        mp_data_long <- rbind(mp_data_long, country_long)
+      } else {
+        cat("Warning: Incomplete data for", mp_name, "- excluding from analysis\n")
+      }
+    } else {
+      cat("Warning: Country code", mp_code, "not found in Maddison Project 2020 data\n")
+    }
+  }
+  
+  if (length(countries_complete) == 0) {
+    stop("No countries have complete data coverage in Maddison Project 2020 data")
+  }
+  
+  cat("Countries with complete data:", paste(countries_complete, collapse = ", "), "\n")
+  
+  # Handle Germany ratio splicing if needed
+  if ("Germany" %in% countries_complete) {
+    mp_data_long <- apply_germany_ratio_splice_mp(mp_data_long)
+  }
+  
+  return(list(data = mp_data_long, complete_countries = countries_complete))
+}
+
+# Function to apply Germany ratio splicing for MP data
+apply_germany_ratio_splice_mp <- function(mp_data) {
+  # Check if West_Germany.csv exists
+  if (!file.exists("Data/West_Germany.csv")) {
+    cat("Warning: West_Germany.csv not found. Using Germany MP data as-is.\n")
+    return(mp_data)
+  }
+  
+  # Read West Germany data
+  west_germany <- read.csv("Data/West_Germany.csv", stringsAsFactors = FALSE)
+  cat("West Germany data loaded with", nrow(west_germany), "observations\n")
+  cat("Years available:", min(west_germany$year, na.rm=T), "-", max(west_germany$year, na.rm=T), "\n")
+  
+  # Get Germany data from MP
+  germany_data <- mp_data[mp_data$country_code == "DEU", ]
+  
+  if (nrow(germany_data) == 0) {
+    cat("No Germany data found in MP data\n")
+    return(mp_data)
+  }
+  
+  # Strategy: Same as WDI - use MP Germany data for 1960-1991, apply West Germany growth rates for 1992-2003
+  
+  # Get 1991 MP value (reunification year baseline)
+  mp_1991 <- germany_data$gdp_pc[germany_data$year == 1991]
+  
+  if (is.na(mp_1991) || length(mp_1991) == 0) {
+    cat("Warning: No MP data for Germany in 1991. Cannot perform ratio splicing.\n")
+    return(mp_data)
+  }
+  
+  # Get 1991 West Germany value (baseline for growth rates)
+  west_1991 <- west_germany$gdp[west_germany$year == 1991]
+  
+  if (is.na(west_1991) || length(west_1991) == 0) {
+    cat("Warning: No West Germany data for 1991. Cannot perform ratio splicing.\n")
+    return(mp_data)
+  }
+  
+  cat("Ratio splicing Germany MP data:\n")
+  cat("  Using MP Germany data for 1960-1991\n")
+  cat("  MP Germany 1991 (baseline):", mp_1991, "\n")
+  cat("  West Germany 1991 (baseline):", west_1991, "\n") 
+  cat("  Applying West Germany growth rates for 1992-2003:\n")
+  
+  # Apply West Germany growth pattern for post-1991 years
+  for (year in 1992:2003) {
+    if (year %in% west_germany$year) {
+      west_current <- west_germany$gdp[west_germany$year == year]
+      
+      if (!is.na(west_current)) {
+        # Calculate growth rate from West Germany data
+        growth_factor <- west_current / west_1991
+        
+        # Apply growth rate to 1991 MP level
+        new_value <- growth_factor * mp_1991
+        
+        # Replace in MP data
+        germany_row <- mp_data$country_code == "DEU" & mp_data$year == year
+        if (sum(germany_row) > 0) {
+          old_value <- mp_data$gdp_pc[germany_row]
+          mp_data$gdp_pc[germany_row] <- new_value
+          cat("    Year", year, ": West Germany =", west_current, 
+              ", growth factor =", round(growth_factor, 4),
+              ", new MP value =", round(new_value, 2), 
+              ", (was", round(old_value, 2), ")\n")
+        }
+      }
+    }
+  }
+  
+  return(mp_data)
 }
 
 # Function to apply Germany ratio splicing
@@ -297,6 +528,35 @@ merge_wdi_with_original <- function(original_data, wdi_result) {
       
       if (length(wdi_value) > 0 && !is.na(wdi_value)) {
         filtered_original$gdp[original_rows] <- wdi_value
+      }
+    }
+  }
+  
+  return(filtered_original)
+}
+
+# Function to merge MP data with original dataset
+merge_mp_with_original <- function(original_data, mp_result) {
+  # Create mapping between original and MP country names
+  complete_mapping <- country_mapping_mp[country_mapping_mp$mp_name %in% mp_result$complete_countries, ]
+  
+  # Filter original data to countries with complete MP data
+  filtered_original <- original_data[original_data$country %in% complete_mapping$original, ]
+  
+  # Merge MP GDP data
+  for (i in 1:nrow(complete_mapping)) {
+    original_country <- complete_mapping$original[i]
+    mp_country <- complete_mapping$mp_name[i]
+    mp_code <- complete_mapping$mp_code[i]
+    
+    mp_country_data <- mp_result$data[mp_result$data$country_code == mp_code, ]
+    
+    for (year in 1960:2003) {
+      original_rows <- filtered_original$country == original_country & filtered_original$year == year
+      mp_value <- mp_country_data$gdp_pc[mp_country_data$year == year]
+      
+      if (length(mp_value) > 0 && !is.na(mp_value)) {
+        filtered_original$gdp[original_rows] <- mp_value
       }
     }
   }
@@ -423,7 +683,7 @@ run_scm_analysis <- function(data, output_dir, version_name) {
     
     #### Figure 1: Trends in Per-Capita GDP: West Germany vs. Rest of the OECD Sample
     # Set y-axis limits based on version - consistent for original and constant2015
-    if (version_name == "original" || version_name == "constant2015") {
+    if (version_name == "original" || version_name == "constant2015" || version_name == "mp2023constant" || version_name == "mp2020constant") {
       ylim_fig1 <- c(0, 160)  # 0 to 150 with 10 padding above
       use_custom_axes <- TRUE
     } else if (version_name == "usa100") {
@@ -448,7 +708,7 @@ run_scm_analysis <- function(data, output_dir, version_name) {
     if (use_custom_axes) {
       if (version_name == "usa100") {
         axis(2, at=seq(60, 100, 10), las=1)
-      } else if (version_name == "original" || version_name == "constant2015") {
+      } else if (version_name == "original" || version_name == "constant2015" || version_name == "mp2023constant" || version_name == "mp2020constant") {
         axis(2, at=seq(0, 150, 50), las=1)  # Numbers every 50
       }
     }
@@ -464,7 +724,7 @@ run_scm_analysis <- function(data, output_dir, version_name) {
     
     #### Figure 2: Trends in Per-Capita GDP: West Germany vs. Synthetic West Germany
     # Set y-axis limits based on version - consistent for original and constant2015
-    if (version_name == "original" || version_name == "constant2015") {
+    if (version_name == "original" || version_name == "constant2015" || version_name == "mp2023constant" || version_name == "mp2020constant") {
       ylim_fig2 <- c(0, 160)  # 0 to 150 with 10 padding above
       use_custom_axes <- TRUE
     } else if (version_name == "usa100") {
@@ -488,7 +748,7 @@ run_scm_analysis <- function(data, output_dir, version_name) {
     if (use_custom_axes) {
       if (version_name == "usa100") {
         axis(2, at=seq(60, 100, 10), las=1)
-      } else if (version_name == "original" || version_name == "constant2015") {
+      } else if (version_name == "original" || version_name == "constant2015" || version_name == "mp2023constant" || version_name == "mp2020constant") {
         axis(2, at=seq(0, 150, 50), las=1)  # Numbers every 50
       }
     }
@@ -506,7 +766,7 @@ run_scm_analysis <- function(data, output_dir, version_name) {
     gap <- dataprep.out$Y1-(dataprep.out$Y0%*%synth.out$solution.w)
     
     # Set y-axis limits based on version - consistent for original and constant2015
-    if (version_name %in% c("original", "constant2015")) {
+    if (version_name %in% c("original", "constant2015", "mp2023constant", "mp2020constant")) {
       ylim_fig3 <- c(-18, 18)  # -15 to 15 with 3 padding either side
       use_custom_axes <- TRUE
     } else if (version_name == "wg100_each_year") {
@@ -529,7 +789,7 @@ run_scm_analysis <- function(data, output_dir, version_name) {
     if (use_custom_axes) {
       if (version_name == "usa100") {
         axis(2, at=seq(-10, 10, 5), las=1)
-      } else if (version_name == "original" || version_name == "constant2015") {
+      } else if (version_name == "original" || version_name == "constant2015" || version_name == "mp2023constant" || version_name == "mp2020constant") {
         axis(2, at=seq(-15, 15, 5), las=1)  # Numbers every 5
       }
     }
@@ -599,7 +859,7 @@ run_scm_analysis <- function(data, output_dir, version_name) {
     
     # Calculate y-axis limits for placebo plot - consistent for original and constant2015
     synthY0_placebo <- (dataprep.out.placebo$Y0%*%synth.out.placebo$solution.w)
-    if (version_name == "original" || version_name == "constant2015") {
+    if (version_name == "original" || version_name == "constant2015" || version_name == "mp2023constant" || version_name == "mp2020constant") {
       ylim_fig4 <- c(0, 140)  # 0 to 120 with 20 padding above
       use_custom_axes <- TRUE
     } else if (version_name == "usa100") {
@@ -622,7 +882,7 @@ run_scm_analysis <- function(data, output_dir, version_name) {
     if (use_custom_axes) {
       if (version_name == "usa100") {
         axis(2, at=seq(60, 100, 10), las=1)
-      } else if (version_name == "original" || version_name == "constant2015") {
+      } else if (version_name == "original" || version_name == "constant2015" || version_name == "mp2023constant" || version_name == "mp2020constant") {
         axis(2, at=seq(0, 120, 20), las=1)  # Numbers every 20
       }
     }
@@ -785,7 +1045,7 @@ run_scm_analysis <- function(data, output_dir, version_name) {
     
     # Calculate y-axis limits for jackknife plot - consistent for original and constant2015
     all_loo_data <- as.vector(storegaps_loo)
-    if (version_name == "original" || version_name == "constant2015") {
+    if (version_name == "original" || version_name == "constant2015" || version_name == "mp2023constant" || version_name == "mp2020constant") {
       ylim_fig6 <- c(0, 170)  # 0 to 150 with 20 padding above
       use_custom_axes <- TRUE
     } else if (version_name == "usa100") {
@@ -807,7 +1067,7 @@ run_scm_analysis <- function(data, output_dir, version_name) {
     if (use_custom_axes) {
       if (version_name == "usa100") {
         axis(2, at=seq(60, 100, 10), las=1)
-      } else if (version_name == "original" || version_name == "constant2015") {
+      } else if (version_name == "original" || version_name == "constant2015" || version_name == "mp2023constant" || version_name == "mp2020constant") {
         axis(2, at=seq(0, 150, 50), las=1)  # Numbers every 50
       }
     }
@@ -951,7 +1211,7 @@ run_scm_analysis <- function(data, output_dir, version_name) {
       
       # Calculate y-axis limits for sparse controls plot - consistent for original and constant2015
       all_sparse_data <- as.vector(fig7store)
-      if (version_name == "original" || version_name == "constant2015") {
+      if (version_name == "original" || version_name == "constant2015" || version_name == "mp2023constant" || version_name == "mp2020constant") {
         ylim_fig7 <- c(0, 160)  # 0 to 150 with 10 padding above
         use_custom_axes <- TRUE
       } else if (version_name == "usa100") {
@@ -978,7 +1238,7 @@ run_scm_analysis <- function(data, output_dir, version_name) {
         if (use_custom_axes) {
           if (version_name == "usa100") {
             axis(2, at=seq(60, 100, 10), las=1)
-          } else if (version_name == "original" || version_name == "constant2015") {
+          } else if (version_name == "original" || version_name == "constant2015" || version_name == "mp2023constant" || version_name == "mp2020constant") {
             axis(2, at=seq(0, 150, 50), las=1)  # Numbers every 50
           }
         }
@@ -1063,15 +1323,67 @@ main <- function() {
     })
   }
   
+  # 4. Run Maddison Project 2023 analysis with normalization (West Germany 1990 = 100)
+  cat("\n=== Running Maddison Project 2023 Analysis ===\n")
+  
+  tryCatch({
+    # Download and prepare MP 2023 data
+    mp_2023_result <- prepare_mp_2023_data()
+    
+    # Merge with original data
+    d_mp_2023_merged <- merge_mp_with_original(d_original, mp_2023_result)
+    
+    # Normalize GDP 
+    d_mp_2023_normalized <- normalize_gdp(d_mp_2023_merged)
+    
+    # Save database for MP 2023 version
+    save_database(d_mp_2023_normalized, "database_mp_2023_constant.csv", 
+                  "Maddison Project 2023 constant data normalized (West Germany 1990 = 100)")
+    
+    # Run SCM analysis
+    run_scm_analysis(d_mp_2023_normalized, "Results/MP_2023_constant", "mp2023constant")
+    
+  }, error = function(e) {
+    cat("Failed to complete Maddison Project 2023 analysis:", e$message, "\n")
+  })
+  
+  # 5. Run Maddison Project 2020 analysis with normalization (West Germany 1990 = 100)
+  cat("\n=== Running Maddison Project 2020 Analysis ===\n")
+  
+  tryCatch({
+    # Download and prepare MP 2020 data
+    mp_2020_result <- prepare_mp_2020_data()
+    
+    # Merge with original data
+    d_mp_2020_merged <- merge_mp_with_original(d_original, mp_2020_result)
+    
+    # Normalize GDP 
+    d_mp_2020_normalized <- normalize_gdp(d_mp_2020_merged)
+    
+    # Save database for MP 2020 version
+    save_database(d_mp_2020_normalized, "database_mp_2020_constant.csv", 
+                  "Maddison Project 2020 constant data normalized (West Germany 1990 = 100)")
+    
+    # Run SCM analysis
+    run_scm_analysis(d_mp_2020_normalized, "Results/MP_2020_constant", "mp2020constant")
+    
+  }, error = function(e) {
+    cat("Failed to complete Maddison Project 2020 analysis:", e$message, "\n")
+  })
+  
   cat("\n=== All analyses completed ===\n")
   cat("Results saved in separate folders:\n")
   cat("- Results/Original_normalized/ (West Germany 1990 = 100)\n")
   cat("- Results/Original_USA_100/ (USA = 100 each year)\n")
   cat("- Results/WDI_constant/ (WDI constant 2015 data, West Germany 1990 = 100)\n")
+  cat("- Results/MP_2023_constant/ (Maddison Project 2023 constant data, West Germany 1990 = 100)\n")
+  cat("- Results/MP_2020_constant/ (Maddison Project 2020 constant data, West Germany 1990 = 100)\n")
   cat("\nDatabases saved in Data folder:\n")
   cat("- Data/database_original_normalized.csv\n")
   cat("- Data/database_original_usa100.csv\n")
   cat("- Data/database_wdi_constant2015.csv\n")
+  cat("- Data/database_mp_2023_constant.csv\n")
+  cat("- Data/database_mp_2020_constant.csv\n")
   cat("\nNote: Each folder contains all 15 output files from the SCM analysis\n")
 }
 
