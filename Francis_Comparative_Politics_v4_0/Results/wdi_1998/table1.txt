@@ -1,0 +1,20 @@
+% latex table generated in R 4.4.2 by xtable 1.8-4 package
+% Sun Sep 28 10:36:24 2025
+\begin{table}[ht]
+\centering
+\begin{tabular}{rlrrlrr}
+  \hline
+ & unit.names & w.weights & regression.w & unit.names & w.weights & regression.w \\ 
+  \hline
+15 & Australia & 0.00 & 0.13 & New Zealand & 0.00 & 0.13 \\ 
+  3 & Austria & 0.50 & 0.29 & Norway & 0.00 & 0.03 \\ 
+  4 & Belgium & 0.00 & -0.01 & Portugal & 0.00 & -0.07 \\ 
+  5 & Denmark & 0.00 & 0.09 & Spain & 0.00 & 0.00 \\ 
+  6 & France & 0.00 & 0.03 & Switzerland & 0.19 & 0.01 \\ 
+  12 & Greece & 0.00 & -0.09 & UK & 0.00 & 0.05 \\ 
+  7 & Italy & 0.00 & -0.07 & USA & 0.05 & 0.12 \\ 
+  11 & Japan & 0.26 & 0.21 &  &  &  \\ 
+  8 & Netherlands & 0.00 & 0.15 &  &  &  \\ 
+   \hline
+\end{tabular}
+\end{table}

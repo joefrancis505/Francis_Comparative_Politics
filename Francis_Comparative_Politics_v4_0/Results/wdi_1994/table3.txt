@@ -1,0 +1,30 @@
+[[1]]
+  unit.names w.weights
+1    Austria         1
+
+[[2]]
+  unit.names w.weights
+2    Austria      0.78
+1        USA      0.22
+
+[[3]]
+   unit.names w.weights
+1     Austria      0.50
+3       Japan      0.29
+2 Switzerland      0.20
+
+[[4]]
+   unit.names w.weights
+2     Austria      0.55
+4       Japan      0.24
+3 Switzerland      0.13
+1         USA      0.09
+
+[[5]]
+    unit.names w.weights
+3      Austria      0.54
+14       Japan      0.22
+12 Switzerland      0.12
+1          USA      0.11
+2           UK      0.00
+
